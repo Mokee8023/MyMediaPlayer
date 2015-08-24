@@ -20,12 +20,19 @@
 
         <EditText
             android:id="@+id/et_MediaPath"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content"
             android:layout_marginLeft="10dp"
             android:hint="@string/EditText_video_path_hint"
             android:singleLine="true"
             android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Set" />
     </LinearLayout>
 
     <TextView

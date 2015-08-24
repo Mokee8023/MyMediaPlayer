@@ -5,9 +5,10 @@
     android:orientation="vertical" >
 
     <FrameLayout
-        android:clickable="true"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" >
+        android:layout_height="match_parent"
+        android:layout_gravity="center_horizontal"
+        android:clickable="true" >
 
         <SurfaceView
             android:id="@+id/wSurfaceView"
@@ -26,6 +27,7 @@
                 android:layout_marginBottom="10dp"
                 android:layout_marginLeft="10dp"
                 android:layout_marginRight="10dp"
+                android:gravity="center_vertical"
                 android:orientation="horizontal" >
 
                 <ImageButton
@@ -35,16 +37,14 @@
                     android:background="@android:color/transparent"
                     android:scaleType="fitCenter" />
 
-                <ProgressBar
+                <SeekBar
                     android:id="@+id/wControlProcess"
-                    style="?android:attr/progressBarStyleHorizontal"
                     android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_gravity="center"
-                    android:layout_marginLeft="20dp"
-                    android:layout_marginRight="10dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="10dp"
                     android:layout_weight="1"
-                    android:background="@drawable/progressbar" />
+                    android:progressDrawable="@drawable/bg_bar"
+                    android:thumb="@drawable/thumb_bar" />
             </LinearLayout>
         </RelativeLayout>
     </FrameLayout>
