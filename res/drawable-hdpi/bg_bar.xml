@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android" >
 
-    <item
-        android:id="@+android:id/background"
-        android:drawable="@drawable/bar_up"/>
-    <item
-        android:id="@+android:id/SecondaryProgress"
-        android:drawable="@drawable/bar_up"/>
-    <item
-        android:id="@+android:id/progress"
-        android:drawable="@drawable/bar_dn"/>
+    <item android:id="@android:id/background">
+        <clip android:drawable="@drawable/bar_up_xml" />
+    </item>
+    <item android:id="@android:id/secondaryProgress">
+        <clip android:drawable="@drawable/bar_up_xml" />
+    </item>
+    <item android:id="@android:id/progress">
+        <clip android:drawable="@drawable/bar_dn_xml" />
+    </item>
 
 </layer-list>

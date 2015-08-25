@@ -1,5 +1,8 @@
 package com.mokee.mptest;
 
+import com.mokee.mptest.MyMediaPlayer.onErrorListener;
+import com.mokee.mptest.MyMediaPlayer.onInfoListener;
+
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
@@ -12,15 +15,14 @@ import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
-
-import com.mokee.mptest.MyMediaPlayer.onEndPlayingLisenter;
+import android.widget.Toast;
 
 public class MainActivity extends Activity {
 	private static final String tag = "MainActivity";
 	
 	private TextView tv_GooglePath;
-	private Button button;
-	private EditText et_MediaPath;
+	private Button button, buttonUrl;
+	private EditText et_MediaPath, et_MediaPathUrl;
 	private MyMediaPlayer myMediaPlayer;
 	private String[] videoPaths = new String[]{"video_1_55M.mp4", "video_2_143M.mp4"};
 	private int[] position = new int[2];
@@ -37,8 +39,10 @@ public class MainActivity extends Activity {
 	private void initView(){
 		tv_GooglePath = (TextView) findViewById(R.id.tv_GooglePath);
 		et_MediaPath = (EditText) findViewById(R.id.et_MediaPath);
+		et_MediaPathUrl = (EditText) findViewById(R.id.et_MediaPathUrl);
 		myMediaPlayer = (MyMediaPlayer) findViewById(R.id.myMediaPlayer);
 		button = (Button) findViewById(R.id.button);
+		buttonUrl = (Button) findViewById(R.id.buttonUrl);
 	}
 	
 	private void initEvent() {
@@ -48,6 +52,27 @@ public class MainActivity extends Activity {
 			@Override
 			public void onClick(View v) {
 				myMediaPlayer.setMediaDataResource(et_MediaPath.getText().toString().trim());
+			}
+		});
+		buttonUrl.setOnClickListener(new OnClickListener() {
+			
+			@Override
+			public void onClick(View v) {
+				myMediaPlayer.setMediaDataResource(et_MediaPathUrl.getText().toString().trim());
+			}
+		});
+		
+		myMediaPlayer.setOnInfoListener(new onInfoListener() {
+			
+			@Override
+			public void info(String info, int what) {
+				Toast.makeText(MainActivity.this, info, Toast.LENGTH_SHORT).show();;
+			}
+		});
+		myMediaPlayer.setOnErrorListener(new onErrorListener() {
+			
+			@Override
+			public void error(String error, int what) {
 			}
 		});
 	}
@@ -67,7 +92,7 @@ public class MainActivity extends Activity {
 	@Override
 	protected void onResume() {
 		myMediaPlayer = (MyMediaPlayer) findViewById(R.id.myMediaPlayer);
-		myMediaPlayer.setMediaDataResource(et_MediaPath.getText().toString().trim(), position[0]);
+		myMediaPlayer.setMediaDataResource(et_MediaPath.getText().toString().trim());
 		super.onResume();
 	}
 	

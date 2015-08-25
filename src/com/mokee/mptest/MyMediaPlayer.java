@@ -7,6 +7,7 @@ import android.content.Context;
 import android.media.MediaPlayer;
 import android.media.MediaPlayer.OnCompletionListener;
 import android.media.MediaPlayer.OnErrorListener;
+import android.media.MediaPlayer.OnInfoListener;
 import android.media.MediaPlayer.OnPreparedListener;
 import android.os.Handler;
 import android.os.Message;
@@ -15,6 +16,8 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.SurfaceHolder;
 import android.view.SurfaceHolder.Callback;
+import android.view.animation.Animation;
+import android.view.animation.TranslateAnimation;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.ImageButton;
@@ -23,14 +26,17 @@ import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.SeekBar.OnSeekBarChangeListener;
 /**
- * 在Pause时,如果Resume会抛出异常,暂时未解决,可以通过在Pause时获取播放位置,Resume时,从特定位置播放
+ * 两种播放模式(1.从头播放	 2.从特定位置播放)
+ * 不使用该控件,需要释放控件(release())
  * @author Mokee_Work
  *
  */
 public class MyMediaPlayer extends LinearLayout implements Callback,
-		OnCompletionListener, OnErrorListener, OnPreparedListener, OnSeekBarChangeListener {
+		OnCompletionListener, OnErrorListener, OnPreparedListener,
+		OnSeekBarChangeListener, OnInfoListener {
 	private static final String tag = "MyMediaPlayer";
 	
+	private Context mContext;
 	private View mView;
 	private SurfaceView mSurfaceView;
 	private RelativeLayout mRelativeLayout;
@@ -39,26 +45,31 @@ public class MyMediaPlayer extends LinearLayout implements Callback,
 	
 	private SurfaceHolder mSurfaceHolder;
 	private MediaPlayer mMediaPlayer;
-	private Handler mHandler;
+	private Handler delayHandler;
 	private boolean isLooping;// 是否循环
 	private boolean isExit = false;// 是否结束
 	private int seekPosition = 0;// 从特定位置播放
-	private onEndPlayingLisenter mEndPlayingLisenter = null;
+	private onEndPlayingListener mEndPlayingListener = null;
+	private onErrorListener mErrorListener = null;
+	private onInfoListener mInfoListener = null;
 	
 	public MyMediaPlayer(Context context, AttributeSet attrs, int defStyle) {
 		super(context, attrs, defStyle);
+		mContext = context;
 		mView = LayoutInflater.from(context).inflate(R.layout.my_media_player, this, true);
 		initView();
 	}
 
 	public MyMediaPlayer(Context context, AttributeSet attrs) {
 		super(context, attrs);
+		mContext = context;
 		mView = LayoutInflater.from(context).inflate(R.layout.my_media_player, this, true);
 		initView();
 	}
 
 	public MyMediaPlayer(Context context) {
 		super(context);
+		mContext = context;
 		mView = LayoutInflater.from(context).inflate(R.layout.my_media_player, this, true);
 		initView();
 	}
@@ -67,7 +78,7 @@ public class MyMediaPlayer extends LinearLayout implements Callback,
 	 * 初始化View,即控件初始化
 	 */
 	private void initView() {
-		mHandler = new Handler();
+		delayHandler = new Handler();
 		time = new TimeService();
 		time.start();
 		isLooping = false;
@@ -87,6 +98,8 @@ public class MyMediaPlayer extends LinearLayout implements Callback,
 		mControlPlay.setOnClickListener(myClickListener);
 		mSurfaceView.setOnClickListener(myClickListener);
 		mControlProcess.setOnSeekBarChangeListener(this);
+		
+		displayMenu();
 	}
 
 	/**
@@ -97,7 +110,7 @@ public class MyMediaPlayer extends LinearLayout implements Callback,
 		mMediaPlayer.setOnPreparedListener(this); 
 		mMediaPlayer.setOnErrorListener(this);  
 		mMediaPlayer.setLooping(isLooping);
-		// mMediaPlayer.setOnInfoListener(this);
+		mMediaPlayer.setOnInfoListener(this);
 		// mMediaPlayer.setOnSeekCompleteListener(this);
 		// mMediaPlayer.setOnVideoSizeChangedListener(this);	
 	}
@@ -128,7 +141,6 @@ public class MyMediaPlayer extends LinearLayout implements Callback,
 	public void setMediaDataResource(String path, int positon){
 		try {
 			this.seekPosition = positon;
-			mMediaPlayer.reset();
 			mMediaPlayer.setDataSource(path);
 			mMediaPlayer.prepareAsync();
 		} catch (IllegalArgumentException e) {
@@ -165,7 +177,7 @@ public class MyMediaPlayer extends LinearLayout implements Callback,
 	 */
 	public int[] getMediaProcess(){
 		int[] duration = new int[2];
-		if(!isExit && mMediaPlayer != null && mMediaPlayer.isPlaying()){
+		if(!isExit && mMediaPlayer != null){
 			duration[0] = mMediaPlayer.getCurrentPosition();
 			duration[1] = mMediaPlayer.getDuration();
 		}
@@ -187,9 +199,11 @@ public class MyMediaPlayer extends LinearLayout implements Callback,
 	@Override
 	public void surfaceDestroyed(SurfaceHolder holder) {
 		Log.i(tag, "MyMediaPlayer.surfaceDestroyed");
-		isExit = true;
+		
 		if (mMediaPlayer != null) {
-			mMediaPlayer.release();
+			seekPosition = mMediaPlayer.getCurrentPosition();
+			mMediaPlayer.setDisplay(null);
+			mMediaPlayer.reset();
 		}		
 	}
 	/***********************************************************************/
@@ -201,8 +215,8 @@ public class MyMediaPlayer extends LinearLayout implements Callback,
 		Log.i(tag, "MyMediaPlayer.onPrepared");
 		setLayoutParam(mp);
 		mMediaPlayer.start();
-		if(seekPosition != 0){
-			mMediaPlayer.seekTo(seekPosition);
+		if(seekPosition > 1000){
+			mMediaPlayer.seekTo(seekPosition - 1000);
 			seekPosition = 0;
 		}
 		mMediaPlayer.setLooping(this.isLooping);
@@ -215,34 +229,132 @@ public class MyMediaPlayer extends LinearLayout implements Callback,
 	public void onCompletion(MediaPlayer mp) {
 		Log.i(tag, "MyMediaPlayer.onCompletion");
 		mControlPlay.setImageResource(R.drawable.play);
-		if(mEndPlayingLisenter != null){
-			mEndPlayingLisenter.endPlaying(true);
+		if(mEndPlayingListener != null){
+			mEndPlayingListener.endPlaying(true);
 		}
 	}
 
 	@Override
 	public boolean onError(MediaPlayer mp, int what, int extra) {
-		Log.i(tag, "MyMediaPlayer.onError");
+		String error = "";
+		switch (what) {
+		case MediaPlayer.MEDIA_ERROR_IO:
+			error = "MEDIA_ERROR_IO";
+			break;
+		case MediaPlayer.MEDIA_ERROR_MALFORMED:
+			error = "MEDIA_ERROR_MALFORMED";
+			break;
+		case MediaPlayer.MEDIA_ERROR_NOT_VALID_FOR_PROGRESSIVE_PLAYBACK:
+			error = "MEDIA_ERROR_NOT_VALID_FOR_PROGRESSIVE_PLAYBACK";
+			break;
+		case MediaPlayer.MEDIA_ERROR_SERVER_DIED:
+			error = "MEDIA_ERROR_SERVER_DIED";
+			break;
+		case MediaPlayer.MEDIA_ERROR_TIMED_OUT:
+			error = "MEDIA_ERROR_TIMED_OUT";
+			break;
+		case MediaPlayer.MEDIA_ERROR_UNKNOWN:
+			error = "MEDIA_ERROR_UNKNOWN";
+			break;
+		case MediaPlayer.MEDIA_ERROR_UNSUPPORTED:
+			error = "MEDIA_ERROR_UNSUPPORTED";
+			break;
+
+		default:
+			break;
+		}
+		if(mErrorListener != null){
+			mErrorListener.error(error, what);
+			// release();
+		}
+		Log.i(tag, "MyMediaPlayer.onError：" + error);
+		return false;
+	}
+	
+	@Override
+	public boolean onInfo(MediaPlayer mp, int what, int extra) {
+		String info = "";
+		switch (what) {
+		case MediaPlayer.MEDIA_INFO_BAD_INTERLEAVING:
+			info = "MEDIA_INFO_BAD_INTERLEAVING";
+			break;
+		case MediaPlayer.MEDIA_INFO_BUFFERING_END:
+			info = "MEDIA_INFO_BUFFERING_END";
+			break;
+		case MediaPlayer.MEDIA_INFO_BUFFERING_START:
+			info = "MEDIA_INFO_BUFFERING_START";
+			break;
+		case MediaPlayer.MEDIA_INFO_METADATA_UPDATE:
+			info = "MEDIA_INFO_METADATA_UPDATE";
+			break;
+		case MediaPlayer.MEDIA_INFO_NOT_SEEKABLE:
+			info = "MEDIA_INFO_NOT_SEEKABLE";
+			break;
+		case MediaPlayer.MEDIA_INFO_SUBTITLE_TIMED_OUT:
+			info = "MEDIA_INFO_SUBTITLE_TIMED_OUT";
+			break;
+		case MediaPlayer.MEDIA_INFO_UNKNOWN:
+			info = "MEDIA_INFO_UNKNOWN";
+			break;
+		case MediaPlayer.MEDIA_INFO_UNSUPPORTED_SUBTITLE:
+			info = "MEDIA_INFO_UNSUPPORTED_SUBTITLE";
+			break;
+		case MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START:
+			info = "MEDIA_INFO_VIDEO_RENDERING_START";
+			break;
+		case MediaPlayer.MEDIA_INFO_VIDEO_TRACK_LAGGING:
+			info = "MEDIA_INFO_VIDEO_TRACK_LAGGING";
+			break;
+
+		default:
+			break;
+		}
+		if(mInfoListener != null){
+			mInfoListener.info(info, what);
+		}
+		Log.i(tag, "MyMediaPlayer.onInfo：" + info);
 		return false;
 	}
 	
 	/***********************************************************************/
 	
 	/**
-	 * 用于控制点击SurfaceView显示或者隐藏控制按钮
+	 * 底部菜单栏显示和隐藏效果
 	 */
-	private Runnable showRunnable = new Runnable() {
+	TranslateAnimation mShowAction = new TranslateAnimation(
+			Animation.ZORDER_BOTTOM, 0.0f, Animation.ZORDER_BOTTOM, 0.0f,
+			Animation.ZORDER_BOTTOM, -1.0f, Animation.ZORDER_BOTTOM, 0.0f);
+
+	TranslateAnimation mHiddenAction = new TranslateAnimation(
+			Animation.ZORDER_BOTTOM, 0.0f, Animation.ZORDER_BOTTOM, 0.0f,
+			Animation.ZORDER_BOTTOM, 0.0f, Animation.ZORDER_BOTTOM, -1.0f);
+	
+	/**
+	 * 用于隐藏控制按钮
+	 */
+	private Runnable hideRunnable = new Runnable() {
 		
 		@Override
 		public void run() {
-			if(mRelativeLayout.getVisibility() == View.GONE){
-				mRelativeLayout.setVisibility(View.VISIBLE);
-			} else {
-				mRelativeLayout.setVisibility(View.GONE);
-			}
+			mRelativeLayout.setVisibility(View.GONE);
+			mHiddenAction.setDuration(1500);
+			mRelativeLayout.setAnimation(mHiddenAction);
 		}
 	};
 	
+	/** 隐藏与显示底部控制按钮    */
+	private void displayMenu() {
+		if (mRelativeLayout.getVisibility() == View.VISIBLE) {
+			mRelativeLayout.setVisibility(View.GONE);
+			mHiddenAction.setDuration(1500);
+			mRelativeLayout.setAnimation(mHiddenAction);
+		} else if (mRelativeLayout.getVisibility() == View.GONE) {
+			mRelativeLayout.setVisibility(View.VISIBLE);
+			mShowAction.setDuration(1500);
+			mRelativeLayout.setAnimation(mShowAction);
+		}
+	}
+
 	/**
 	 * 自定义OnClickListener,实现控制SurfaceView、Play、SeekBar的点击事件
 	 */
@@ -252,7 +364,7 @@ public class MyMediaPlayer extends LinearLayout implements Callback,
 		public void onClick(View v) {
 			switch (v.getId()) {
 			case R.id.wSurfaceView:
-				mHandler.post(showRunnable);
+				displayMenu();
 				break;
 			case R.id.wControlPlay:
 				changePlayState();
@@ -263,6 +375,8 @@ public class MyMediaPlayer extends LinearLayout implements Callback,
 			default:
 				break;
 			}
+			delayHandler.removeCallbacks(hideRunnable);
+			delayHandler.postDelayed(hideRunnable, 5 * 1000);
 		}
 	};
 	
@@ -355,7 +469,7 @@ public class MyMediaPlayer extends LinearLayout implements Callback,
 
 	@Override
 	public void onStartTrackingTouch(SeekBar seekBar) {
-		Log.i(tag, "Start Tracking Touch:" + mMediaPlayer.getCurrentPosition());		
+		Log.i(tag, "Start Tracking Touch:" + mMediaPlayer.getCurrentPosition());	
 	}
 
 	@Override
@@ -366,18 +480,37 @@ public class MyMediaPlayer extends LinearLayout implements Callback,
 	
 	/******************************************************************************/
 	
-	/**
-	 * 播放完毕回调接口
-	 */
-	public interface onEndPlayingLisenter{
+	/** 播放完毕回调接口  */
+	public interface onEndPlayingListener{
 		public void endPlaying(boolean isEnd);
+	}
+	/** 播放错误回调接口  */
+	public interface onErrorListener{
+		public void error(String error, int what);
+	}
+	/** 播放信息回调接口  */
+	public interface onInfoListener{
+		public void info(String info, int what);
 	}
 	
 	/**
 	 * 如果设置了循环播放,则设置该监听器无用
 	 * @param lisenter	onEndPlayingLisenter
 	 */
-	public void setOnEndPlayingLisenter(onEndPlayingLisenter lisenter){
-		this.mEndPlayingLisenter = lisenter;
+	public void setOnEndPlayingLisenter(onEndPlayingListener lisenter){
+		this.mEndPlayingListener = lisenter;
+	}
+	public void setOnErrorListener(onErrorListener lisenter){
+		this.mErrorListener = lisenter; 
+	}
+	public void setOnInfoListener(onInfoListener lisenter){
+		this.mInfoListener = lisenter; 
+	}
+	
+	public void release() {
+		isExit = true;
+		if (mMediaPlayer != null) {
+			mMediaPlayer.release();
+		}
 	}
 }
